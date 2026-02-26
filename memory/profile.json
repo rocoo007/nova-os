@@ -1,0 +1,8 @@
+{
+  "assistant_name": "NOVA",
+  "user_name": "Debabrata",
+  "preferences": {
+    "step_by_step": true,
+    "confirm_dangerous_actions": true
+  }
+}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 # Very simple allowlist for MVP (safe, read-only)
 ALLOWED_PREFIXES = [
@@ -21,6 +21,7 @@ ALLOWED_PREFIXES = [
     "curl ",
 ]
 
+# Things we never allow
 DENY_CONTAINS = [
     "rm ",
     "sudo",
@@ -33,14 +34,28 @@ DENY_CONTAINS = [
     "chown",
 ]
 
+# Commands that require confirmation (even if allowlisted later in future)
+CONFIRM_CONTAINS = [
+    "rm ",
+    "git reset",
+    "git clean",
+    "kill ",
+    "pkill",
+]
+
 @dataclass
 class ShellResult:
     ok: bool
     blocked: bool
+    needs_confirm: bool
     reason: Optional[str]
     stdout: str
     stderr: str
     returncode: int
+
+def is_dangerous(cmd: str) -> bool:
+    low = cmd.strip().lower()
+    return any(x in low for x in CONFIRM_CONTAINS)
 
 def is_allowed(cmd: str) -> tuple[bool, Optional[str]]:
     c = cmd.strip()
@@ -59,15 +74,29 @@ def is_allowed(cmd: str) -> tuple[bool, Optional[str]]:
     return False, "Blocked: command not in allowlist (MVP safety)."
 
 def run_shell(cmd: str, timeout_sec: int = 10) -> ShellResult:
+    # deny/allow check
     allowed, reason = is_allowed(cmd)
     if not allowed:
         return ShellResult(
             ok=False,
             blocked=True,
+            needs_confirm=False,
             reason=reason,
             stdout="",
             stderr="",
             returncode=126,
+        )
+
+    # if dangerous (future-proof)
+    if is_dangerous(cmd):
+        return ShellResult(
+            ok=False,
+            blocked=False,
+            needs_confirm=True,
+            reason="Needs confirmation",
+            stdout="",
+            stderr="",
+            returncode=0,
         )
 
     try:
@@ -81,6 +110,7 @@ def run_shell(cmd: str, timeout_sec: int = 10) -> ShellResult:
         return ShellResult(
             ok=(proc.returncode == 0),
             blocked=False,
+            needs_confirm=False,
             reason=None,
             stdout=proc.stdout.strip(),
             stderr=proc.stderr.strip(),
@@ -90,6 +120,7 @@ def run_shell(cmd: str, timeout_sec: int = 10) -> ShellResult:
         return ShellResult(
             ok=False,
             blocked=False,
+            needs_confirm=False,
             reason="Command timed out",
             stdout="",
             stderr="timeout",
