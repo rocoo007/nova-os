@@ -11,6 +11,37 @@ app = FastAPI(title="NOVA OS")
 PROFILE_PATH = Path("memory/profile.json")
 
 
+
+def plan_to_cmd(user_text: str) -> str | None:
+    """
+    Ultra-simple MVP planner (no LLM yet):
+    maps common intents -> safe shell commands.
+    """
+    t = user_text.strip().lower()
+
+    # file/system
+    if any(x in t for x in ["where am i", "current folder", "current directory", "pwd", "kothay achi", "folder kothay"]):
+        return "pwd"
+    if any(x in t for x in ["list files", "show files", "files dekhao", "ls", "folder er file", "ki ki ache"]):
+        return "ls"
+    if any(x in t for x in ["who am i", "user", "ami ke", "whoami"]):
+        return "whoami"
+
+    # git
+    if any(x in t for x in ["git status", "status dekhao", "repo status", "working tree"]):
+        return "git status"
+    if any(x in t for x in ["git log", "commit history", "log dekhao"]):
+        return "git log --oneline -5"
+
+    # dangerous (confirm-gated)
+    if any(x in t for x in ["reset repo", "hard reset", "git reset"]):
+        return "git reset --hard"
+    if any(x in t for x in ["clean repo", "git clean", "remove untracked"]):
+        return "git clean -fd"
+
+    return None
+
+
 def load_profile() -> dict:
     if PROFILE_PATH.exists():
         return json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
