@@ -19,6 +19,9 @@ ALLOWED_PREFIXES = [
     "tail ",
     "echo ",
     "curl ",
+    "git reset",
+    "git clean",
+
 ]
 
 # Things we never allow
