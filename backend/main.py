@@ -97,6 +97,64 @@ def chat(payload: ChatIn):
     msg = payload.message.strip()
     low = msg.lower()
 
+    # Confirm flow: "confirm <token>"
+    if low.startswith("confirm "):
+        token = msg.split(" ", 1)[1].strip()
+        cmd = pop_if_valid(token)
+        if not cmd:
+            return {"reply": f"{assistant}: ❌ Invalid/expired token. Please retry the command."}
+
+        r = run_shell(cmd, timeout_sec=10)
+        if r.blocked:
+            return {"reply": f"{assistant}: ⚠️ Blocked -> {r.reason}"}
+        out = r.stdout if r.stdout else r.stderr
+        return {"reply": f"{assistant}: ✅ Confirmed & executed.
+{out}"}
+
+    # Explicit tool trigger: "cmd:" / "run:"
+    if low.startswith("cmd:") or low.startswith("run:"):
+        cmd = msg.split(":", 1)[1].strip()
+        r = run_shell(cmd, timeout_sec=10)
+
+        if r.blocked:
+            return {"reply": f"{assistant}: ⚠️ Blocked -> {r.reason}"}
+
+        if r.needs_confirm:
+            token = create_token(cmd)
+            return {"reply": f"{assistant}: ⚠️ This action needs confirmation.
+Type: confirm {token}"}
+
+        out = r.stdout if r.stdout else r.stderr
+        return {"reply": f"{assistant}: ✅ Done (code {r.returncode})
+{out}"}
+
+    # ✅ Planner mode (no cmd needed)
+    planned = plan_to_cmd(msg)
+    if planned:
+        r = run_shell(planned, timeout_sec=10)
+
+        if r.blocked:
+            return {"reply": f"{assistant}: ⚠️ Blocked -> {r.reason}"}
+
+        if r.needs_confirm:
+            token = create_token(planned)
+            return {"reply": f"{assistant}: ⚠️ This action needs confirmation.
+Type: confirm {token}"}
+
+        out = r.stdout if r.stdout else r.stderr
+        return {"reply": f"{assistant}: ✅ Done
+{out}"}
+
+    # default chat
+    return {"reply": f"{assistant}: I heard -> {msg}"}
+
+
+    prof = load_profile()
+    assistant = prof.get("assistant_name", "NOVA")
+
+    msg = payload.message.strip()
+    low = msg.lower()
+
     # Confirm flow:
     # "confirm <token>"
     if low.startswith("confirm "):
